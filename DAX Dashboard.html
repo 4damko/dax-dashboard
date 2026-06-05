@@ -50,6 +50,11 @@
   .card .lbl{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
   .card .val{font-size:24px;font-weight:700;margin-top:6px}
   .card .sub2{color:var(--muted);font-size:12px;margin-top:4px}
+  .vollegend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:-8px 0 22px;font-size:12px;color:var(--muted)}
+  .vollegend .lg{font-weight:600;color:var(--text)}
+  .vollegend .it{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);
+        border:1px solid var(--line);border-radius:999px;padding:4px 11px}
+  .vollegend .it b{color:var(--text)}
   .cardtop{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
   .cardarrow{font-size:22px;font-weight:800;line-height:.8;flex-shrink:0}
   .cardarrow.up{color:var(--green)} .cardarrow.down{color:var(--red)}
@@ -118,6 +123,7 @@
   </header>
 
   <div class="cards" id="cards"></div>
+  <div class="vollegend" id="volLegend"></div>
 
   <div class="panel">
     <h2>📈 Trend podľa rámca</h2>
@@ -223,6 +229,14 @@ function tfChange(tf){
   return {abs:b-a, pct:(b-a)/a*100, first:a, last:b, n:s.length};
 }
 const dir=p=>p==null?'flat':(p>0.05?'up':p<-0.05?'down':'flat');
+// škála strachu/nervozity (vyššia realiz. volatilita = väčší strach) — zdieľaná kartou aj legendou
+const VOL_LEVELS=[
+  {max:12,       emoji:'🟢', lab:'Pokoj',          col:'#16c784', range:'< 12 %'},
+  {max:18,       emoji:'🟡', lab:'Normál',         col:'#f0c020', range:'12–18 %'},
+  {max:25,       emoji:'🟠', lab:'Zvýšená',        col:'#f5832b', range:'18–25 %'},
+  {max:Infinity, emoji:'🔴', lab:'Vysoká (stres)', col:'#ea3943', range:'> 25 %'}
+];
+const volLevel=v=>VOL_LEVELS.find(l=>v<l.max);
 function volInfo(){   // realizovaná volatilita DAX (ann.) — náhrada za VDAX, ktorý je z keyless zdrojov nedostupný
   const s=STATE.daily?.pts; if(!s||s.length<65) return null;
   const lr=[]; for(let i=1;i<s.length;i++) lr.push(Math.log(s[i].c/s[i-1].c));
@@ -230,12 +244,7 @@ function volInfo(){   // realizovaná volatilita DAX (ann.) — náhrada za VDAX
     const v=a.reduce((x,y)=>x+(y-m)**2,0)/(a.length-1); return Math.sqrt(v)*Math.sqrt(252)*100; };
   const cur=annVol(lr.slice(-30)), prev=annVol(lr.slice(-60,-30));
   const trend=(cur!=null&&prev!=null)?cur-prev:null;
-  let cls,lab;                                                        // strach/nervozita: vyššia vol = väčší strach
-  if(cur<12){cls='pos';lab='Pokoj';}
-  else if(cur<18){cls='flat';lab='Normál';}
-  else if(cur<25){cls='neg';lab='Zvýšená';}
-  else {cls='neg';lab='Vysoká (stres)';}
-  return {v:cur,trend,cls,lab};
+  return {v:cur,trend,lev:volLevel(cur)};
 }
 
 /* ---- fetch all ---- */
@@ -271,7 +280,13 @@ function setStatus(t,cls){const s=$('#status');s.textContent=t;s.className='stat
 /* ---- render ---- */
 let chart=null;
 function render(){
-  renderCards(); renderTrend(); renderAlign();
+  renderCards(); renderVolLegend(); renderTrend(); renderAlign();
+}
+function renderVolLegend(){
+  const vd=volInfo(), active=vd?vd.lev.lab:null;
+  $('#volLegend').innerHTML='<span class="lg">Volatilita 30D · škála strachu:</span>'+
+    VOL_LEVELS.map(l=>`<span class="it" style="${l.lab===active?'border-color:'+l.col+';box-shadow:0 0 0 1px '+l.col:''}">`+
+      `${l.emoji} <b>${l.range}</b> ${l.lab}</span>`).join('');
 }
 function renderCards(){
   const m=STATE.intra.meta;
@@ -294,7 +309,7 @@ function renderCards(){
   ];
   const vd=volInfo();
   if(vd) cards.push({lbl:'Volatilita 30D · strach',
-    val:'<span class="'+vd.cls+'">'+fmt(vd.v,1)+' %</span> <span style="font-size:13px;font-weight:600" class="'+vd.cls+'">'+vd.lab+'</span>',
+    val:'<span style="color:'+vd.lev.col+'">'+fmt(vd.v,1)+' %</span> <span style="font-size:13px;font-weight:600;color:'+vd.lev.col+'">'+vd.lev.emoji+' '+vd.lev.lab+'</span>',
     sub:'ann. realizovaná'+(vd.trend!=null?' · '+(vd.trend>=0?'▲ rastie (viac strachu)':'▼ klesá (pokoj sa vracia)'):'')});
   $('#cards').innerHTML=cards.map(c=>`<div class="card"><div class="cardtop"><div>
     <div class="lbl">${c.lbl}</div><div class="val">${c.val}</div>
