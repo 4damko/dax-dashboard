@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DAX">
+<title>DAX 40 — Trend &amp; denné zmeny (live)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --brand:#0086ff; --accent:#00d4b3;
+    --green:#16c784; --red:#ea3943; --amber:#f0a020;
+    --bg:#0b0f17; --panel:#131a26; --panel2:#1a2332;
+    --line:#243044; --text:#e8edf5; --muted:#8a97ad;
+    --glow:rgba(0,134,255,.12);
+  }
+  html[data-theme="light"]{
+    --bg:#eef2f7; --panel:#ffffff; --panel2:#f4f7fb;
+    --line:#e3e8f0; --text:#0f1722; --muted:#5b6878;
+    --glow:rgba(0,134,255,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Arial,sans-serif;
+       background:radial-gradient(1200px 600px at 70% -10%,var(--glow),transparent),var(--bg);color:var(--text);
+       transition:background-color .2s,color .2s;overflow-x:hidden}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+  header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:6px}
+  h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-.3px}
+  h1 .b{background:linear-gradient(90deg,var(--brand),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 0}
+  .refresh{display:flex;align-items:center;gap:10px}
+  .refresh button.r{background:var(--brand);color:#fff;border:none;padding:9px 16px;border-radius:10px;
+        font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+  .refresh button.r:hover{filter:brightness(1.1)} .refresh button.r:disabled{opacity:.5;cursor:default}
+  .iconbtn{background:var(--panel2);color:var(--text);border:1px solid var(--line);width:40px;height:38px;
+        border-radius:10px;font-size:16px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+        transition:.15s;padding:0}
+  .iconbtn:hover{border-color:var(--brand)}
+  .status{color:var(--muted);font-size:12px;width:100%;text-align:right;margin-top:4px}
+  .status.err{color:var(--red)} .status.warn{color:var(--amber)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:22px 0 22px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+        border-radius:16px;padding:16px 18px}
+  .card .lbl{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .card .val{font-size:24px;font-weight:700;margin-top:6px}
+  .card .sub2{color:var(--muted);font-size:12px;margin-top:4px}
+  .cardtop{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
+  .cardarrow{font-size:22px;font-weight:800;line-height:.8;flex-shrink:0}
+  .cardarrow.up{color:var(--green)} .cardarrow.down{color:var(--red)}
+  .pos{color:var(--green)} .neg{color:var(--red)} .flat{color:var(--amber)}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+         border-radius:18px;padding:18px 18px 14px;margin-bottom:22px}
+  .panel h2{font-size:15px;margin:0 0 4px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .panel .hint{color:var(--muted);font-size:12px;margin:0 0 14px}
+  .toolbar{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+  .toolbar button{background:var(--panel2);color:var(--muted);border:1px solid var(--line);
+        padding:7px 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+  .toolbar button:hover{border-color:var(--brand);color:var(--text)}
+  .toolbar button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  /* Big trend signal */
+  .signal{display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+          border-radius:14px;padding:16px 18px;margin-bottom:14px;border:1px solid var(--line)}
+  .signal.up{background:linear-gradient(90deg,rgba(22,199,132,.16),transparent);border-color:rgba(22,199,132,.4)}
+  .signal.down{background:linear-gradient(90deg,rgba(234,57,67,.16),transparent);border-color:rgba(234,57,67,.4)}
+  .signal.flat{background:linear-gradient(90deg,rgba(240,160,32,.14),transparent);border-color:rgba(240,160,32,.4)}
+  .signal .big{font-size:40px;font-weight:800;line-height:1}
+  .signal .pct{font-size:30px;font-weight:800}
+  .signal .verdict{font-size:14px;font-weight:600;line-height:1.4}
+  .signal .verdict small{display:block;color:var(--muted);font-weight:500;font-size:12px;margin-top:2px}
+  .chartbox{position:relative;height:300px}
+  /* alignment grid */
+  .align{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .align .tf{border:1px solid var(--line);border-radius:12px;padding:12px 8px;text-align:center;background:var(--panel2)}
+  .align .tf .k{font-size:12px;color:var(--muted);font-weight:600}
+  .align .tf .a{font-size:22px;font-weight:800;margin:4px 0 2px}
+  .align .tf .p{font-size:12px;font-weight:700}
+  .align .tf.up{border-color:rgba(22,199,132,.45)} .align .tf.up .a{color:var(--green)}
+  .align .tf.down{border-color:rgba(234,57,67,.45)} .align .tf.down .a{color:var(--red)}
+  .align .tf.flat .a{color:var(--amber)}
+  .biasbar{margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);
+           font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .biasbar .dot{font-size:18px}
+  /* movers */
+  .moverwrap{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .moverwrap h3{font-size:13px;margin:0 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .mrow{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:9px;
+        font-size:13px;margin-bottom:5px;background:var(--panel2);border:1px solid var(--line)}
+  .mrow .nm{font-weight:600} .mrow .tk{color:var(--muted);font-size:11px;margin-left:6px}
+  .mrow .pc{font-weight:700}
+  .breadth{display:flex;gap:8px;height:10px;border-radius:6px;overflow:hidden;margin:4px 0 14px;border:1px solid var(--line)}
+  .breadth .up{background:var(--green)} .breadth .dn{background:var(--red)}
+  footer{color:var(--muted);font-size:11px;text-align:center;margin-top:30px;line-height:1.6}
+  @media(max-width:760px){
+    .align{grid-template-columns:repeat(3,1fr)}
+    .moverwrap{grid-template-columns:1fr}
+    .signal .big{font-size:32px}.signal .pct{font-size:24px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1><span class="b">DAX 40</span> — Trend &amp; denné zmeny</h1>
+      <p class="sub">Zdroj: <b>Xetra / Deutsche Börse</b> (index ^GDAXI, EUR) · cez Yahoo Finance. Pre potvrdenie BUY / SELL setupu.</p>
+    </div>
+    <div class="refresh">
+      <button class="r" id="refreshBtn">↻ Obnoviť</button>
+      <button class="iconbtn" id="themeBtn" title="Svetlá / tmavá">🌙</button>
+    </div>
+    <div class="status" id="status">Načítavam…</div>
+  </header>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="panel">
+    <h2>📈 Trend podľa rámca</h2>
+    <p class="hint">Vyber časový rámec — veľký signál ukáže celkový smer (HORE / DOLE) a či sedí s BUY alebo SELL.</p>
+    <div class="toolbar" id="tfBar"></div>
+    <div class="signal flat" id="signal">
+      <div class="big" id="sigArrow">–</div>
+      <div><div class="pct" id="sigPct">–</div></div>
+      <div class="verdict" id="sigVerdict">—</div>
+    </div>
+    <div class="chartbox"><canvas id="trendChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>🎯 Zhoda časových rámcov</h2>
+    <p class="hint">Koľko rámcov ukazuje rovnaký smer = sila trendu. Keď viac rámcov svieti zeleno → BUY bias; keď červeno → SELL bias.</p>
+    <div class="align" id="alignGrid"></div>
+    <div class="biasbar" id="biasBar"><span class="dot">⏳</span> Počítam…</div>
+  </div>
+
+  <div class="panel">
+    <h2>🏢 Čo ťahá index (top firmy DAX)</h2>
+    <p class="hint">Najväčší ťahúni / brzdy dnešného dňa spomedzi hlavných firiem DAX. Načíta sa na vyžiadanie (šetrí dáta).</p>
+    <div class="toolbar"><button id="moversBtn" class="on">Načítať movers</button></div>
+    <div class="breadth" id="breadth" style="display:none"></div>
+    <div id="breadthTxt" class="hint" style="display:none"></div>
+    <div class="moverwrap" id="moverWrap" style="display:none">
+      <div><h3>▲ Ťahúni</h3><div id="gainers"></div></div>
+      <div><h3>▼ Brzdy</h3><div id="losers"></div></div>
+    </div>
+  </div>
+
+  <footer>
+    Dáta: Yahoo Finance (index ^GDAXI = Xetra performance index) cez verejný čítač r.jina.ai · bez API kľúča.<br>
+    Aktualizuje sa pri každom načítaní / kliknutí na ↻. Posledné dobré dáta sa cachujú lokálne pre prípad výpadku.<br>
+    Len informatívne, nie je to investičné odporúčanie.
+  </footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const fmt=(n,d=2)=>n==null||isNaN(n)?'–':n.toLocaleString('sk-SK',{minimumFractionDigits:d,maximumFractionDigits:d});
+const pctStr=p=>(p>=0?'+':'')+fmt(p,2)+' %';
+const dím=ts=>new Date(ts).toLocaleString('sk-SK',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+
+/* ---- theme ---- */
+const themeBtn=$('#themeBtn');
+function applyTheme(t){document.documentElement.setAttribute('data-theme',t);themeBtn.textContent=t==='light'?'☀️':'🌙';
+  document.querySelector('meta[name=theme-color]').setAttribute('content',t==='light'?'#eef2f7':'#0b0f17');}
+let theme=localStorage.getItem('dax-theme')||'dark'; applyTheme(theme);
+themeBtn.onclick=()=>{theme=theme==='light'?'dark':'light';localStorage.setItem('dax-theme',theme);applyTheme(theme);if(STATE.ready)render();};
+
+/* ---- data layer (Yahoo via Jina reader, keyless + CORS) ---- */
+const JINA='https://r.jina.ai/';
+const Y='https://query1.finance.yahoo.com/v8/finance/chart/';
+async function yfetch(sym,range,interval){
+  const url=JINA+Y+encodeURIComponent(sym)+'?range='+range+'&interval='+interval;
+  const res=await fetch(url,{headers:{'Accept':'text/plain'}});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const txt=await res.text();
+  const i=txt.indexOf('{"chart"');
+  if(i<0) throw new Error('no chart');
+  const j=JSON.parse(txt.slice(i,txt.lastIndexOf('}')+1));
+  if(j.chart.error) throw new Error(j.chart.error.description||'chart error');
+  return j.chart.result[0];
+}
+function toSeries(r){
+  const ts=r.timestamp||[], q=(r.indicators.quote||[{}])[0]||{}, c=q.close||[];
+  const o=q.open||[],h=q.high||[],l=q.low||[];
+  const pts=[];
+  for(let i=0;i<ts.length;i++){ if(c[i]!=null) pts.push({t:ts[i]*1000,o:o[i],h:h[i],l:l[i],c:c[i]}); }
+  return {pts,meta:r.meta};
+}
+
+const STATE={ready:false,intra:null,daily:null,allw:null,vdax:null,tf:'30D',fetchedAt:null,cached:false};
+const TFS=['1D','3D','7D','30D','90D','All'];
+
+/* slice helpers */
+function lastDates(pts,n){ // distinct calendar dates, last n
+  const seen=[],out=[];
+  for(let i=pts.length-1;i>=0;i--){
+    const d=new Date(pts[i].t).toDateString();
+    if(!seen.includes(d)){ if(seen.length>=n) break; seen.push(d);}
+    out.unshift(pts[i]);
+  }
+  return out;
+}
+function lastDays(pts,days){ const cut=Date.now()-days*86400000; return pts.filter(p=>p.t>=cut); }
+function tfSeries(tf){
+  const i=STATE.intra?.pts||[], d=STATE.daily?.pts||[], a=STATE.allw?.pts||[];
+  switch(tf){
+    case '1D': return lastDates(i,1);
+    case '3D': return lastDates(i,3);
+    case '7D': { const s=lastDays(d,8); return s.length>1?s:lastDates(i,5); }
+    case '30D': return lastDays(d,31);
+    case '90D': return lastDays(d,92);
+    case 'All': return a;
+  }
+}
+function tfChange(tf){
+  const s=tfSeries(tf); if(!s||s.length<2) return null;
+  const a=s[0].c, b=s[s.length-1].c;
+  return {abs:b-a, pct:(b-a)/a*100, first:a, last:b, n:s.length};
+}
+const dir=p=>p==null?'flat':(p>0.05?'up':p<-0.05?'down':'flat');
+function volInfo(){   // realizovaná volatilita DAX (ann.) — náhrada za VDAX, ktorý je z keyless zdrojov nedostupný
+  const s=STATE.daily?.pts; if(!s||s.length<65) return null;
+  const lr=[]; for(let i=1;i<s.length;i++) lr.push(Math.log(s[i].c/s[i-1].c));
+  const annVol=a=>{ if(a.length<2) return null; const m=a.reduce((x,y)=>x+y,0)/a.length;
+    const v=a.reduce((x,y)=>x+(y-m)**2,0)/(a.length-1); return Math.sqrt(v)*Math.sqrt(252)*100; };
+  const cur=annVol(lr.slice(-30)), prev=annVol(lr.slice(-60,-30));
+  const trend=(cur!=null&&prev!=null)?cur-prev:null;
+  let cls,lab;                                                        // strach/nervozita: vyššia vol = väčší strach
+  if(cur<12){cls='pos';lab='Pokoj';}
+  else if(cur<18){cls='flat';lab='Normál';}
+  else if(cur<25){cls='neg';lab='Zvýšená';}
+  else {cls='neg';lab='Vysoká (stres)';}
+  return {v:cur,trend,cls,lab};
+}
+
+/* ---- fetch all ---- */
+async function loadAll(){
+  setStatus('Načítavam DAX…','');
+  $('#refreshBtn').disabled=true;
+  try{
+    const [intra,daily,allw]=await Promise.all([
+      yfetch('^GDAXI','5d','15m'),
+      yfetch('^GDAXI','2y','1d'),
+      yfetch('^GDAXI','max','1wk')
+    ]);
+    STATE.intra=toSeries(intra); STATE.daily=toSeries(daily); STATE.allw=toSeries(allw);
+    STATE.fetchedAt=Date.now(); STATE.cached=false; STATE.ready=true;
+    localStorage.setItem('dax-cache',JSON.stringify({
+      intra:STATE.intra,daily:STATE.daily,allw:STATE.allw,fetchedAt:STATE.fetchedAt}));
+    render();
+    setStatus('Aktuálne · '+dím(STATE.fetchedAt),'');
+  }catch(e){
+    const raw=localStorage.getItem('dax-cache');
+    if(raw){
+      const c=JSON.parse(raw);
+      STATE.intra=c.intra;STATE.daily=c.daily;STATE.allw=c.allw;STATE.fetchedAt=c.fetchedAt;
+      STATE.cached=true;STATE.ready=true;render();
+      setStatus('⚠ Zdroj nedostupný — zobrazené uložené dáta z '+dím(c.fetchedAt),'warn');
+    }else{
+      setStatus('Chyba načítania: '+e.message+' (skús ↻ o chvíľu — r.jina.ai môže byť dočasne vyťažený)','err');
+    }
+  }finally{ $('#refreshBtn').disabled=false; }
+}
+function setStatus(t,cls){const s=$('#status');s.textContent=t;s.className='status'+(cls?' '+cls:'');}
+
+/* ---- render ---- */
+let chart=null;
+function render(){
+  renderCards(); renderTrend(); renderAlign();
+}
+function renderCards(){
+  const m=STATE.intra.meta;
+  const price=m.regularMarketPrice, prev=m.chartPreviousClose??m.previousClose;
+  const dch=price-prev, dpct=dch/prev*100;
+  const hi=m.regularMarketDayHigh, lo=m.regularMarketDayLow;
+  const today=lastDates(STATE.intra.pts,1); const op=m.regularMarketDayOpen??m.regularMarketOpen??(today.length?(today[0].o??today[0].c):null);
+  const w52h=m.fiftyTwoWeekHigh, w52l=m.fiftyTwoWeekLow;
+  const posInRange=(price-w52l)/(w52h-w52l)*100;
+  const t30=tfChange('30D'), trendCls=dir(t30?.pct);
+  const cards=[
+    {lbl:'DAX 40 (live)',val:fmt(price,2),arrow:dch>=0?'up':'down',sub:'EUR · Xetra'},
+    {lbl:'Denná zmena',val:'<span class="'+(dch>=0?'pos':'neg')+'">'+pctStr(dpct)+'</span>',
+      sub:(dch>=0?'+':'')+fmt(dch,1)+' b'+(op?' · open '+fmt(op,0):'')},
+    {lbl:'Deň H / L',val:fmt(hi,0)+' / '+fmt(lo,0),sub:'rozpätie '+fmt(hi-lo,0)+' b'},
+    {lbl:'52-týž. rozsah',val:fmt(w52l,0)+'–'+fmt(w52h,0),sub:'aktuálne na '+fmt(posInRange,0)+' % rozsahu'},
+    {lbl:'Trend 30D',val:'<span class="'+(trendCls==='up'?'pos':trendCls==='down'?'neg':'flat')+'">'+
+        (trendCls==='up'?'Rastúci':trendCls==='down'?'Klesajúci':'Do strany')+'</span>',
+      sub:t30?pctStr(t30.pct)+' za 30 dní':'–'}
+  ];
+  const vd=volInfo();
+  if(vd) cards.push({lbl:'Volatilita 30D · strach',
+    val:'<span class="'+vd.cls+'">'+fmt(vd.v,1)+' %</span> <span style="font-size:13px;font-weight:600" class="'+vd.cls+'">'+vd.lab+'</span>',
+    sub:'ann. realizovaná'+(vd.trend!=null?' · '+(vd.trend>=0?'▲ rastie (viac strachu)':'▼ klesá (pokoj sa vracia)'):'')});
+  $('#cards').innerHTML=cards.map(c=>`<div class="card"><div class="cardtop"><div>
+    <div class="lbl">${c.lbl}</div><div class="val">${c.val}</div>
+    <div class="sub2">${c.sub}</div></div>
+    ${c.arrow?'<div class="cardarrow '+c.arrow+'">'+(c.arrow==='up'?'▲':'▼')+'</div>':''}</div></div>`).join('');
+}
+function renderTrend(){
+  // toolbar
+  $('#tfBar').innerHTML=TFS.map(t=>`<button data-tf="${t}" class="${t===STATE.tf?'on':''}">${t}</button>`).join('');
+  $('#tfBar').querySelectorAll('button').forEach(b=>b.onclick=()=>{STATE.tf=b.dataset.tf;renderTrend();});
+  const tf=STATE.tf, ch=tfChange(tf), s=tfSeries(tf)||[];
+  const dd=dir(ch?.pct);
+  const sig=$('#signal'); sig.className='signal '+dd;
+  const aEl=$('#sigArrow'); aEl.textContent=dd==='up'?'▲':dd==='down'?'▼':'▬';
+  aEl.className='big '+(dd==='up'?'pos':dd==='down'?'neg':'flat');
+  $('#sigPct').innerHTML='<span class="'+(dd==='up'?'pos':dd==='down'?'neg':'flat')+'">'+(ch?pctStr(ch.pct):'–')+'</span>';
+  const verdict=dd==='up'
+      ?{t:'Trend HORE — sedí s BUY setupom',s:'Cena vyššie ako na začiatku rámca ('+tf+'). Long bias.'}
+    :dd==='down'
+      ?{t:'Trend DOLE — sedí so SELL setupom',s:'Cena nižšie ako na začiatku rámca ('+tf+'). Short bias.'}
+      :{t:'Do strany — bez jasného smeru',s:'Zmena pod ±0,05 % v rámci '+tf+'. Opatrne s breakoutmi.'};
+  $('#sigVerdict').innerHTML=verdict.t+'<small>'+verdict.s+
+      (ch?' · '+fmt(ch.first,0)+' → '+fmt(ch.last,0)+' b':'')+'</small>';
+  drawChart(s,dd,tf);
+}
+function drawChart(s,dd,tf){
+  const css=getComputedStyle(document.documentElement);
+  const col=dd==='up'?css.getPropertyValue('--green'):dd==='down'?css.getPropertyValue('--red'):css.getPropertyValue('--amber');
+  const intraday=(tf==='1D'||tf==='3D');
+  const labels=s.map(p=>new Date(p.t).toLocaleString('sk-SK',
+      intraday?{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}:{day:'2-digit',month:'2-digit',year:tf==='All'?'2-digit':undefined}));
+  const data=s.map(p=>p.c);
+  if(chart)chart.destroy();
+  chart=new Chart($('#trendChart'),{type:'line',data:{labels,datasets:[{
+      data,borderColor:col.trim(),borderWidth:2,pointRadius:0,tension:.15,fill:true,
+      backgroundColor:ctx=>{const a=ctx.chart.ctx.createLinearGradient(0,0,0,300);
+        a.addColorStop(0,col.trim()+'33');a.addColorStop(1,col.trim()+'00');return a;}
+    }]},options:{responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.y,2)+' b'}}},
+      scales:{x:{ticks:{color:css.getPropertyValue('--muted').trim(),maxTicksLimit:8,autoSkip:true},grid:{display:false}},
+        y:{ticks:{color:css.getPropertyValue('--muted').trim(),callback:v=>fmt(v,0)},
+           grid:{color:css.getPropertyValue('--line').trim()}}}}});
+}
+function renderAlign(){
+  const grid=$('#alignGrid'); let up=0,down=0,flat=0;
+  grid.innerHTML=TFS.map(t=>{
+    const ch=tfChange(t),d=dir(ch?.pct);
+    if(d==='up')up++;else if(d==='down')down++;else flat++;
+    return `<div class="tf ${d}"><div class="k">${t}</div>
+      <div class="a">${d==='up'?'▲':d==='down'?'▼':'▬'}</div>
+      <div class="p ${d==='up'?'pos':d==='down'?'neg':'flat'}">${ch?pctStr(ch.pct):'–'}</div></div>`;
+  }).join('');
+  const bb=$('#biasBar');
+  let dot,txt;
+  if(up>=4){dot='🟢';txt=`<b style="color:var(--green)">BUY bias</b> — ${up}/6 rámcov HORE. Trend potvrdený naprieč rámcami, longy v smere trendu.`;}
+  else if(down>=4){dot='🔴';txt=`<b style="color:var(--red)">SELL bias</b> — ${down}/6 rámcov DOLE. Trend potvrdený naprieč rámcami, shorty v smere trendu.`;}
+  else{dot='🟠';txt=`<b style="color:var(--amber)">Zmiešané</b> — ${up}× hore / ${down}× dole / ${flat}× do strany. Rámce sa nezhodujú, opatrne (chop / obrat).`;}
+  bb.innerHTML=`<span class="dot">${dot}</span><span>${txt}</span>`;
+}
+
+/* ---- movers (best-effort, on demand) ---- */
+const DAX=[
+  ['SAP.DE','SAP'],['SIE.DE','Siemens'],['ALV.DE','Allianz'],['DTE.DE','Dt. Telekom'],
+  ['MBG.DE','Mercedes-Benz'],['MUV2.DE','Munich Re'],['AIR.DE','Airbus'],['BAS.DE','BASF'],
+  ['BMW.DE','BMW'],['BAYN.DE','Bayer'],['ADS.DE','Adidas'],['DB1.DE','Dt. Börse'],
+  ['IFX.DE','Infineon'],['RHM.DE','Rheinmetall'],['DBK.DE','Dt. Bank'],['VOW3.DE','Volkswagen'],
+  ['EOAN.DE','E.ON'],['RWE.DE','RWE'],['HEN3.DE','Henkel'],['MRK.DE','Merck']
+];
+async function loadMovers(){
+  const btn=$('#moversBtn'); btn.disabled=true; btn.textContent='Načítavam… (0/'+DAX.length+')';
+  const out=[]; let done=0;
+  // sequential in small batches to respect jina rate limits
+  for(let i=0;i<DAX.length;i+=3){
+    const batch=DAX.slice(i,i+3);
+    const res=await Promise.allSettled(batch.map(async([tk,nm])=>{
+      const r=await yfetch(tk,'5d','1d'); const s=toSeries(r).pts;
+      if(s.length<2) throw new Error('thin');
+      const prev=s[s.length-2].c, pr=r.meta.regularMarketPrice??s[s.length-1].c; // last 2 daily closes = 1-day change
+      return {nm,tk,pct:(pr-prev)/prev*100};
+    }));
+    res.forEach(x=>{ if(x.status==='fulfilled'&&isFinite(x.value.pct)) out.push(x.value); });
+    done+=batch.length; btn.textContent='Načítavam… ('+Math.min(done,DAX.length)+'/'+DAX.length+')';
+  }
+  btn.disabled=false; btn.textContent='↻ Movers';
+  if(!out.length){ $('#breadthTxt').style.display='block'; $('#breadthTxt').textContent='Nepodarilo sa načítať (rate limit) — skús o chvíľu.'; return; }
+  out.sort((a,b)=>b.pct-a.pct);
+  const upN=out.filter(o=>o.pct>0).length, dnN=out.filter(o=>o.pct<0).length;
+  const gain=out.slice(0,6), lose=out.slice(-6).reverse();
+  const row=o=>`<div class="mrow"><span class="nm">${o.nm}<span class="tk">${o.tk.replace('.DE','')}</span></span>
+      <span class="pc ${o.pct>=0?'pos':'neg'}">${pctStr(o.pct)}</span></div>`;
+  $('#gainers').innerHTML=gain.map(row).join('');
+  $('#losers').innerHTML=lose.map(row).join('');
+  const tot=upN+dnN||1;
+  const bd=$('#breadth'); bd.style.display='flex';
+  bd.innerHTML=`<div class="up" style="flex:${upN}"></div><div class="dn" style="flex:${dnN}"></div>`;
+  const bt=$('#breadthTxt'); bt.style.display='block';
+  bt.innerHTML=`Šírka trhu (z ${out.length} top firiem): <b class="pos">${upN} hore</b> · <b class="neg">${dnN} dole</b> — `+
+    (upN>dnN?'prevažujú rastúce (risk-on)':dnN>upN?'prevažujú klesajúce (risk-off)':'vyrovnané');
+  $('#moverWrap').style.display='grid';
+}
+$('#moversBtn').onclick=loadMovers;
+
+/* ---- init ---- */
+$('#refreshBtn').onclick=loadAll;
+loadAll();
+</script>
+</body>
+</html>
